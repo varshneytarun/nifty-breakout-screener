@@ -1,14 +1,3 @@
----
-title: Breakout Screener India Stocks
-emoji: 📈
-colorFrom: blue
-colorTo: green
-sdk: gradio
-sdk_version: 5.20.0
-app_file: app.py
-pinned: false
----
-
 # 📈 Breakout Screener & Pre-Breakout Detector (India Stocks)
 
 A technical breakout screener and pre-breakout radar for Nifty 500 stocks (NSE India).
@@ -43,13 +32,13 @@ Navigate to **`http://localhost:8000`**.
 
 ---
 
-## 🤗 Deploying to Hugging Face Spaces (100% Free)
+## 🌐 Free Web Deployment (Render.com)
 
-1. Go to **[huggingface.co/spaces](https://huggingface.co/spaces)** and click **Create new Space**.
-2. Set **Space SDK** to **Gradio** (100% Free, no credit card required).
-3. Push this repository to your Hugging Face Space:
-   ```bash
-   git remote add hf https://huggingface.co/spaces/YOUR_USERNAME/YOUR_SPACE_NAME
-   git push hf main
-   ```
-4. Hugging Face automatically runs `app.py` and hosts your Breakout Screener live for free!
+1. Sign up for free on **[render.com](https://render.com)**.
+2. Click **New +** $\rightarrow$ **Web Service**.
+3. Connect your GitHub repository (`breakout-screener`).
+4. Set the parameters:
+   - **Environment**: `Python 3`
+   - **Build Command**: `pip install -r requirements.txt`
+   - **Start Command**: `python -m uvicorn backend.main:app --host 0.0.0.0 --port $PORT`
+5. Click **Create Web Service**. Done!
