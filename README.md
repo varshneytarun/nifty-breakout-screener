@@ -1,3 +1,14 @@
+---
+title: Breakout Screener India Stocks
+emoji: 📈
+colorFrom: blue
+colorTo: green
+sdk: gradio
+sdk_version: 5.20.0
+app_file: app.py
+pinned: false
+---
+
 # 📈 Breakout Screener & Pre-Breakout Detector (India Stocks)
 
 A technical breakout screener and pre-breakout radar for Nifty 500 stocks (NSE India).
