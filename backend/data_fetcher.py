@@ -21,7 +21,18 @@ from backend.database import (
     get_stock_info,
 )
 
+import os
+import tempfile
+
 logger = logging.getLogger(__name__)
+
+# Set yfinance timezone cache location to temp directory to avoid permissions/existence issues on Render/Cloud
+try:
+    tz_dir = os.path.join(tempfile.gettempdir(), "py-yfinance")
+    os.makedirs(tz_dir, exist_ok=True)
+    yf.set_tz_cache_location(tz_dir)
+except Exception:
+    pass
 
 
 def initialize_stock_universe():
@@ -156,20 +167,11 @@ def sync_all_stocks(
     symbols: list = None,
     period: str = "2y",
     progress_callback=None,
-    batch_size: int = 50,
+    batch_size: int = 20,
 ) -> dict:
     """
     Sync OHLCV data for all stocks (or a subset).
-    Uses batch downloading for speed on first run.
-
-    Args:
-        symbols: List of symbols to sync. If None, syncs all Nifty 500.
-        period: yfinance period for full downloads.
-        progress_callback: Optional callback(current, total, message) for progress updates.
-        batch_size: Number of symbols to download in each batch.
-
-    Returns:
-        Dict with sync statistics.
+    Uses batch downloading with small batch sizes and rate-limit safeguards for cloud deployment.
     """
     if symbols is None:
         symbols = get_all_symbols()
@@ -200,15 +202,16 @@ def sync_all_stocks(
         if progress_callback:
             progress_callback(0, total, f"Downloading {len(needs_full)} new stocks...")
 
-        # Process in batches
+        # Process in smaller batches (20 stocks) to avoid rate limits on cloud IPs
         for batch_start in range(0, len(needs_full), batch_size):
             batch = needs_full[batch_start : batch_start + batch_size]
             tickers = [f"{s}.NS" for s in batch]
 
             try:
+                # Use threads=False on cloud servers to avoid triggering IP rate limits
                 batch_data = yf.download(
                     tickers, period=period, progress=False, auto_adjust=True,
-                    group_by="ticker", threads=True,
+                    group_by="ticker", threads=False,
                 )
 
                 for sym in batch:
@@ -220,11 +223,9 @@ def sync_all_stocks(
                             stock_data = batch_data[ticker] if ticker in batch_data.columns.get_level_values(0) else pd.DataFrame()
 
                         if isinstance(stock_data, pd.DataFrame) and not stock_data.empty:
-                            # Flatten MultiIndex if present
                             if isinstance(stock_data.columns, pd.MultiIndex):
                                 stock_data.columns = stock_data.columns.get_level_values(0)
 
-                            # Normalize column names
                             rename_map = {}
                             for col in stock_data.columns:
                                 col_lower = str(col).lower()
@@ -255,13 +256,18 @@ def sync_all_stocks(
                         failed += 1
 
             except Exception as e:
-                logger.error(f"Batch download error: {e}")
-                # Fallback to individual downloads
+                logger.error(f"Batch download error (rate limit?): {e}. Retrying individually with pauses...")
+                time.sleep(2.0)
+                # Fallback to individual downloads with pauses
                 for sym in batch:
                     try:
                         rows = sync_stock(sym, period)
                         total_rows += rows
-                        synced += 1
+                        if rows > 0:
+                            synced += 1
+                        else:
+                            failed += 1
+                        time.sleep(0.5)
                     except Exception as e2:
                         logger.error(f"Individual download error for {sym}: {e2}")
                         failed += 1
@@ -269,13 +275,13 @@ def sync_all_stocks(
             if progress_callback:
                 done = min(batch_start + batch_size, len(needs_full))
                 progress_callback(
-                    done + len(needs_incremental) if done == len(needs_full) else done,
+                    done,
                     total,
                     f"Downloaded {done}/{len(needs_full)} new stocks..."
                 )
 
-            # Small delay between batches to be nice to Yahoo
-            time.sleep(0.5)
+            # Pause between batches to respect rate limits
+            time.sleep(1.0)
 
     # --- Incremental updates ---
     if needs_incremental:
