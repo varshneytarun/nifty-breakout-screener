@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Breakout stock screener for Nifty 500 Indian stocks. Backtest and validate breakout signals, then scan for live breakouts.">
+    <title>Breakout Screener — India Stocks</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📈</text></svg>">
+</head>
+<body>
+
+    <!-- ─── Header ──────────────────────────────────────────── -->
+    <header class="header">
+        <div class="header-inner">
+            <div class="logo">
+                <div class="logo-icon">B</div>
+                <span class="logo-text">Breakout Screener</span>
+            </div>
+
+            <div class="header-status">
+                <div class="data-status" id="data-status">
+                    <span class="status-dot empty" id="status-dot"></span>
+                    <span id="status-text">No data</span>
+                </div>
+
+                <nav class="tab-nav">
+                    <button class="tab-btn active" data-tab="backtest" id="tab-btn-backtest">Backtest</button>
+                    <button class="tab-btn" data-tab="scan" id="tab-btn-scan">Live Scan</button>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <!-- ─── Main Content ────────────────────────────────────── -->
+    <main class="main-content">
+
+        <!-- ═══ BACKTEST TAB ══════════════════════════════════ -->
+        <div class="tab-content active" id="tab-backtest">
+
+            <!-- Config Panel -->
+            <div class="config-panel">
+                <div class="config-header">
+                    <span class="config-title">⚙️ Screener Configuration</span>
+                    <button class="btn btn-secondary" id="btn-sync" onclick="syncData()">
+                        <span class="spinner"></span>
+                        <span class="btn-text">🔄 Sync Data</span>
+                    </button>
+                </div>
+
+                <div class="config-grid">
+                    <div class="config-group">
+                        <label for="scan-type">Scan Target</label>
+                        <select id="scan-type">
+                            <option value="BROKEN_OUT">Confirmed Breakouts (Already Above Level)</option>
+                            <option value="NEAR_BREAKOUT">Near Breakout Radar (Setting Up Below Level)</option>
+                        </select>
+                    </div>
+
+                    <div class="config-group" id="near-pct-group" style="display:none">
+                        <label for="near-breakout-pct">Near Threshold (% Below Resistance)</label>
+                        <input type="number" id="near-breakout-pct" value="2.0" min="0.5" max="5.0" step="0.5">
+                    </div>
+
+                    <div class="config-group">
+                        <label for="risk-per-trade">Max Risk Per Trade (₹)</label>
+                        <input type="number" id="risk-per-trade" value="5000" min="500" step="500">
+                    </div>
+
+                    <div class="config-group">
+                        <label for="resistance-mode">Resistance Mode</label>
+                        <select id="resistance-mode">
+                            <option value="52_WEEK_HIGH">52-Week High</option>
+                            <option value="N_DAY_HIGH">N-Day High</option>
+                            <option value="SWING_HIGH">Swing High</option>
+                        </select>
+                    </div>
+
+                    <div class="config-group" id="n-day-group" style="display:none">
+                        <label for="n-day-lookback">N-Day Lookback</label>
+                        <input type="number" id="n-day-lookback" value="252" min="20" max="500">
+                    </div>
+
+                    <div class="config-group">
+                        <label for="volume-multiplier">Volume Multiplier</label>
+                        <input type="number" id="volume-multiplier" value="2.0" min="1.0" max="10.0" step="0.5">
+                    </div>
+
+                    <div class="config-group">
+                        <label for="volume-lookback">Volume Lookback (days)</label>
+                        <input type="number" id="volume-lookback" value="20" min="5" max="50">
+                    </div>
+
+                    <div class="config-group">
+                        <label for="min-price">Min Price (₹)</label>
+                        <input type="number" id="min-price" value="50" min="0" step="10">
+                    </div>
+
+                    <div class="config-group">
+                        <label for="min-turnover">Min Turnover (₹ Cr)</label>
+                        <input type="number" id="min-turnover" value="1.0" min="0" step="0.5">
+                    </div>
+
+                    <div class="config-group">
+                        <label>200 DMA Filter</label>
+                        <div class="toggle-group">
+                            <span style="font-size:0.8rem; color:var(--text-secondary)">Above 200 DMA</span>
+                            <label class="toggle">
+                                <input type="checkbox" id="require-200dma" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="config-group">
+                        <label>RSI Filter</label>
+                        <div class="toggle-group">
+                            <span style="font-size:0.8rem; color:var(--text-secondary)">RSI &gt; threshold</span>
+                            <label class="toggle">
+                                <input type="checkbox" id="rsi-filter">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="config-group" id="rsi-threshold-group" style="display:none">
+                        <label for="rsi-threshold">RSI Threshold</label>
+                        <input type="number" id="rsi-threshold" value="60" min="30" max="90">
+                    </div>
+                </div>
+
+                <div class="action-bar">
+                    <button class="btn btn-primary" id="btn-backtest" onclick="runBacktest()">
+                        <span class="spinner"></span>
+                        <span class="btn-text">🧪 Run Backtest</span>
+                    </button>
+                </div>
+
+                <!-- Progress -->
+                <div class="progress-container" id="progress-container">
+                    <div class="progress-bar-track">
+                        <div class="progress-bar-fill" id="progress-bar" style="width: 0%"></div>
+                    </div>
+                    <div class="progress-text" id="progress-text">Initializing...</div>
+                </div>
+            </div>
+
+            <!-- Backtest Results -->
+            <div id="backtest-results" style="display:none">
+
+                <!-- Stats Cards -->
+                <div class="stats-grid" id="stats-cards"></div>
+
+                <!-- Charts Row -->
+                <div class="two-col">
+                    <!-- Score Bucket Chart -->
+                    <div class="chart-panel">
+                        <div class="chart-title">
+                            <span class="icon">📊</span>
+                            Score Bucket Analysis
+                        </div>
+                        <div class="bucket-chart" id="bucket-chart"></div>
+                    </div>
+
+                    <!-- Monthly Distribution -->
+                    <div class="chart-panel">
+                        <div class="chart-title">
+                            <span class="icon">📅</span>
+                            Monthly Signal Distribution
+                        </div>
+                        <div class="monthly-chart" id="monthly-chart"></div>
+                    </div>
+                </div>
+
+                <!-- Signal Table -->
+                <div class="table-panel">
+                    <div class="table-header">
+                        <span class="table-title">📋 Breakout Signals</span>
+                        <span class="table-count" id="signal-count">0 signals</span>
+                    </div>
+                    <div class="table-container">
+                        <table class="data-table" id="signals-table">
+                            <thead>
+                                <tr>
+                                    <th data-sort="signal_date">Date</th>
+                                    <th data-sort="symbol">Symbol</th>
+                                    <th>Company</th>
+                                    <th data-sort="strength_score">Score</th>
+                                    <th data-sort="pct_above">% Above</th>
+                                    <th data-sort="volume_ratio">Vol Ratio</th>
+                                    <th>RSI</th>
+                                    <th data-sort="return_5d">5D Return</th>
+                                    <th data-sort="return_10d">10D Return</th>
+                                    <th data-sort="return_20d">20D Return</th>
+                                    <th data-sort="return_30d">30D Return</th>
+                                </tr>
+                            </thead>
+                            <tbody id="signals-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Empty State -->
+            <div class="empty-state" id="backtest-empty">
+                <div class="icon">🧪</div>
+                <h3>No Backtest Results Yet</h3>
+                <p>Sync market data first, then run a backtest to validate your breakout signals against the last year of data.</p>
+            </div>
+        </div>
+
+        <!-- ═══ LIVE SCAN TAB ═════════════════════════════════ -->
+        <div class="tab-content" id="tab-scan">
+
+            <!-- Scan Config -->
+            <div class="config-panel">
+                <div class="config-header">
+                    <span class="config-title">🔍 Live Scanner Configuration</span>
+                </div>
+                <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:1rem;">
+                    Uses the same filters as the backtest tab. Adjust filters above, then scan.
+                </p>
+                <div class="action-bar" style="border-top:none; padding-top:0; margin-top:0">
+                    <button class="btn btn-success" id="btn-scan" onclick="runLiveScan()">
+                        <span class="spinner"></span>
+                        <span class="btn-text">⚡ Scan Now</span>
+                    </button>
+                </div>
+
+                <div class="progress-container" id="scan-progress">
+                    <div class="progress-bar-track">
+                        <div class="progress-bar-fill" id="scan-progress-bar" style="width: 0%"></div>
+                    </div>
+                    <div class="progress-text" id="scan-progress-text">Scanning...</div>
+                </div>
+            </div>
+
+            <!-- Scan Stats -->
+            <div class="stats-grid" id="scan-stats" style="display:none"></div>
+
+            <!-- Scan Results -->
+            <div class="results-grid" id="scan-results"></div>
+
+            <!-- Scan Empty State -->
+            <div class="empty-state" id="scan-empty">
+                <div class="icon">⚡</div>
+                <h3>Ready to Scan</h3>
+                <p>Click "Scan Now" to detect today's breakout stocks from the Nifty 500 universe.</p>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- ─── Selection Diagnosis Modal ───────────────────────── -->
+    <div class="modal-overlay" id="diag-modal-overlay" onclick="closeDiagModal(event)">
+        <div class="modal-card" id="diag-modal-card">
+            <div class="modal-header">
+                <div>
+                    <div class="modal-title-row">
+                        <h2 class="modal-title" id="modal-symbol">SYMBOL</h2>
+                        <a id="modal-gfinance-link" href="#" target="_blank" rel="noopener noreferrer" class="stock-link" style="font-size:0.85rem; margin-left:0.5rem">Google Finance ↗</a>
+                    </div>
+                    <div class="modal-subtitle" id="modal-company">Company Name</div>
+                </div>
+                <button class="modal-close" onclick="closeDiagModalDirect()">&times;</button>
+            </div>
+
+            <div class="modal-body">
+                <!-- Score Banner -->
+                <div class="diag-score-banner">
+                    <div class="diag-score-circle" id="modal-score-circle">85</div>
+                    <div>
+                        <div style="font-weight:700; font-size:1.05rem" id="modal-score-label">Strong Selection Candidate</div>
+                        <div style="font-size:0.8rem; color:var(--text-muted)" id="modal-type-summary">Confirmed Breakout</div>
+                    </div>
+                </div>
+
+                <!-- Factors List -->
+                <div style="font-weight:600; font-size:0.8rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.75rem">
+                    🔍 Selection Factors Breakdown
+                </div>
+
+                <div class="factor-grid" id="modal-factors-grid">
+                    <!-- Dynamically populated -->
+                </div>
+
+                <!-- Score Composition Bar -->
+                <div style="font-weight:600; font-size:0.8rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em; margin:1.25rem 0 0.75rem">
+                    📊 Strength Score Composition (1-100)
+                </div>
+                <div class="score-breakdown-list" id="modal-score-breakdown">
+                    <!-- Dynamically populated -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

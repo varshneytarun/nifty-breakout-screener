@@ -1,0 +1,21 @@
+# SQLite Database & Data Cache (generated on the fly)
+*.db
+*.sqlite
+*.sqlite3
+data/*.db
+data/cache/
+
+# Python cache & Environments
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+env/
+venv/
+.venv/
+
+# IDE & OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
