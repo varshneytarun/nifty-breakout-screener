@@ -1,9 +1,8 @@
 """
 Hugging Face Gradio SDK Entry Point (app.py)
-Wraps the Breakout Screener FastAPI app into a Gradio Space (100% Free).
+Wraps the Breakout Screener FastAPI app into a Gradio Space.
 """
 
-import os
 import gradio as gr
 from backend.main import app as fastapi_app
 
@@ -21,7 +20,7 @@ with gr.Blocks(
         """
     )
 
-# Mount FastAPI app under /dashboard
+# Mount FastAPI app onto Gradio at root level
 app = gr.mount_gradio_app(fastapi_app, demo, path="/dashboard")
 
 if __name__ == "__main__":
