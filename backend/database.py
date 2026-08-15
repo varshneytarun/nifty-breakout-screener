@@ -20,7 +20,16 @@ def get_connection() -> sqlite3.Connection:
 
 
 def init_db():
-    """Create all tables if they don't exist."""
+    """Create all tables if they don't exist, and seed from screener_seed.db if fresh."""
+    os.makedirs(DATA_DIR, exist_ok=True)
+    seed_db = os.path.join(DATA_DIR, "screener_seed.db")
+    if not os.path.exists(DB_PATH) and os.path.exists(seed_db):
+        import shutil
+        try:
+            shutil.copy2(seed_db, DB_PATH)
+        except Exception:
+            pass
+
     conn = get_connection()
     cursor = conn.cursor()
 

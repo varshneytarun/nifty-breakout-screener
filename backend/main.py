@@ -90,6 +90,26 @@ executor = ThreadPoolExecutor(max_workers=4)
 _running_ops = {}
 
 
+async def _keep_alive_loop():
+    """Background loop to self-ping Render URL every 8 minutes and prevent 15-min sleep."""
+    import urllib.request
+    render_url = os.environ.get("RENDER_EXTERNAL_URL")
+    if not render_url:
+        return
+
+    target = f"{render_url.rstrip('/')}/api/data/status"
+    logger.info(f"Keep-alive loop active for {target}")
+
+    while True:
+        await asyncio.sleep(480)  # Ping every 8 minutes (Render spins down after 15 mins)
+        try:
+            req = urllib.request.Request(target, headers={"User-Agent": "RenderKeepAlive/1.0"})
+            with urllib.request.urlopen(req, timeout=15) as res:
+                logger.info(f"Keep-alive ping response: {res.status}")
+        except Exception as e:
+            logger.warning(f"Keep-alive ping notice: {e}")
+
+
 @app.on_event("startup")
 async def startup():
     """Initialize database and stock universe on startup."""
@@ -98,6 +118,7 @@ async def startup():
     if not symbols:
         initialize_stock_universe()
         logger.info("Stock universe initialized")
+    asyncio.create_task(_keep_alive_loop())
 
 
 def _parse_config(
