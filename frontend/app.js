@@ -784,3 +784,26 @@ function formatDate(dateStr) {
     const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear().toString().slice(2)}`;
 }
+
+// ─── Interactive Help Modal Logic ──────────────────────────────────────────
+function openHelpModal() {
+    document.getElementById('help-modal-overlay').classList.add('active');
+}
+
+function closeHelpModal(event) {
+    if (event.target.id === 'help-modal-overlay') {
+        document.getElementById('help-modal-overlay').classList.remove('active');
+    }
+}
+
+function closeHelpModalDirect() {
+    document.getElementById('help-modal-overlay').classList.remove('active');
+}
+
+function switchHelpTab(tabId, btnEl) {
+    document.querySelectorAll('.help-tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.help-section').forEach(s => s.classList.remove('active'));
+
+    btnEl.classList.add('active');
+    document.getElementById(`help-sec-${tabId}`).classList.add('active');
+}
