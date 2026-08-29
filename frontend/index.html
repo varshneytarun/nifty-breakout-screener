@@ -39,115 +39,119 @@
     <!-- ─── Main Content ────────────────────────────────────── -->
     <main class="main-content">
 
-        <!-- ═══ BACKTEST TAB ══════════════════════════════════ -->
-        <div class="tab-content active" id="tab-backtest">
+        <!-- ═══ GLOBAL SCREENER CONFIGURATION & FILTERS ════════ -->
+        <div class="config-panel">
+            <div class="config-header">
+                <span class="config-title">⚙️ Screener Configuration & Filters</span>
+                <button class="btn btn-secondary" id="btn-sync" onclick="syncData()">
+                    <span class="spinner"></span>
+                    <span class="btn-text">🔄 Sync Data</span>
+                </button>
+            </div>
 
-            <!-- Config Panel -->
-            <div class="config-panel">
-                <div class="config-header">
-                    <span class="config-title">⚙️ Screener Configuration</span>
-                    <button class="btn btn-secondary" id="btn-sync" onclick="syncData()">
-                        <span class="spinner"></span>
-                        <span class="btn-text">🔄 Sync Data</span>
-                    </button>
+            <div class="config-grid">
+                <div class="config-group">
+                    <label for="scan-type">Scan Target</label>
+                    <select id="scan-type">
+                        <option value="BROKEN_OUT">Confirmed Breakouts (Already Above Level)</option>
+                        <option value="NEAR_BREAKOUT">Near Breakout Radar (Setting Up Below Level)</option>
+                    </select>
                 </div>
 
-                <div class="config-grid">
-                    <div class="config-group">
-                        <label for="scan-type">Scan Target</label>
-                        <select id="scan-type">
-                            <option value="BROKEN_OUT">Confirmed Breakouts (Already Above Level)</option>
-                            <option value="NEAR_BREAKOUT">Near Breakout Radar (Setting Up Below Level)</option>
-                        </select>
-                    </div>
+                <div class="config-group" id="near-pct-group" style="display:none">
+                    <label for="near-breakout-pct">Near Threshold (% Below Resistance)</label>
+                    <input type="number" id="near-breakout-pct" value="2.0" min="0.5" max="5.0" step="0.5">
+                </div>
 
-                    <div class="config-group" id="near-pct-group" style="display:none">
-                        <label for="near-breakout-pct">Near Threshold (% Below Resistance)</label>
-                        <input type="number" id="near-breakout-pct" value="2.0" min="0.5" max="5.0" step="0.5">
-                    </div>
+                <div class="config-group">
+                    <label for="risk-per-trade">Max Risk Per Trade (₹)</label>
+                    <input type="number" id="risk-per-trade" value="5000" min="500" step="500">
+                </div>
 
-                    <div class="config-group">
-                        <label for="risk-per-trade">Max Risk Per Trade (₹)</label>
-                        <input type="number" id="risk-per-trade" value="5000" min="500" step="500">
-                    </div>
+                <div class="config-group">
+                    <label for="resistance-mode">Resistance Mode</label>
+                    <select id="resistance-mode">
+                        <option value="52_WEEK_HIGH">52-Week High</option>
+                        <option value="N_DAY_HIGH">N-Day High</option>
+                        <option value="SWING_HIGH">Swing High</option>
+                    </select>
+                </div>
 
-                    <div class="config-group">
-                        <label for="resistance-mode">Resistance Mode</label>
-                        <select id="resistance-mode">
-                            <option value="52_WEEK_HIGH">52-Week High</option>
-                            <option value="N_DAY_HIGH">N-Day High</option>
-                            <option value="SWING_HIGH">Swing High</option>
-                        </select>
-                    </div>
+                <div class="config-group" id="n-day-group" style="display:none">
+                    <label for="n-day-lookback">N-Day Lookback</label>
+                    <input type="number" id="n-day-lookback" value="252" min="20" max="500">
+                </div>
 
-                    <div class="config-group" id="n-day-group" style="display:none">
-                        <label for="n-day-lookback">N-Day Lookback</label>
-                        <input type="number" id="n-day-lookback" value="252" min="20" max="500">
-                    </div>
+                <div class="config-group">
+                    <label for="volume-multiplier">Volume Multiplier</label>
+                    <input type="number" id="volume-multiplier" value="2.0" min="1.0" max="10.0" step="0.5">
+                </div>
 
-                    <div class="config-group">
-                        <label for="volume-multiplier">Volume Multiplier</label>
-                        <input type="number" id="volume-multiplier" value="2.0" min="1.0" max="10.0" step="0.5">
-                    </div>
+                <div class="config-group">
+                    <label for="volume-lookback">Volume Lookback (days)</label>
+                    <input type="number" id="volume-lookback" value="20" min="5" max="50">
+                </div>
 
-                    <div class="config-group">
-                        <label for="volume-lookback">Volume Lookback (days)</label>
-                        <input type="number" id="volume-lookback" value="20" min="5" max="50">
-                    </div>
+                <div class="config-group">
+                    <label for="min-price">Min Price (₹)</label>
+                    <input type="number" id="min-price" value="50" min="0" step="10">
+                </div>
 
-                    <div class="config-group">
-                        <label for="min-price">Min Price (₹)</label>
-                        <input type="number" id="min-price" value="50" min="0" step="10">
-                    </div>
+                <div class="config-group">
+                    <label for="min-turnover">Min Turnover (₹ Cr)</label>
+                    <input type="number" id="min-turnover" value="1.0" min="0" step="0.5">
+                </div>
 
-                    <div class="config-group">
-                        <label for="min-turnover">Min Turnover (₹ Cr)</label>
-                        <input type="number" id="min-turnover" value="1.0" min="0" step="0.5">
-                    </div>
-
-                    <div class="config-group">
-                        <label>200 DMA Filter</label>
-                        <div class="toggle-group">
-                            <span style="font-size:0.8rem; color:var(--text-secondary)">Above 200 DMA</span>
-                            <label class="toggle">
-                                <input type="checkbox" id="require-200dma" checked>
-                                <span class="toggle-slider"></span>
-                            </label>
-                        </div>
-                    </div>
-
-                    <div class="config-group">
-                        <label>RSI Filter</label>
-                        <div class="toggle-group">
-                            <span style="font-size:0.8rem; color:var(--text-secondary)">RSI &gt; threshold</span>
-                            <label class="toggle">
-                                <input type="checkbox" id="rsi-filter">
-                                <span class="toggle-slider"></span>
-                            </label>
-                        </div>
-                    </div>
-
-                    <div class="config-group" id="rsi-threshold-group" style="display:none">
-                        <label for="rsi-threshold">RSI Threshold</label>
-                        <input type="number" id="rsi-threshold" value="60" min="30" max="90">
+                <div class="config-group">
+                    <label>200 DMA Filter</label>
+                    <div class="toggle-group">
+                        <span style="font-size:0.8rem; color:var(--text-secondary)">Above 200 DMA</span>
+                        <label class="toggle">
+                            <input type="checkbox" id="require-200dma" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
                     </div>
                 </div>
 
-                <div class="action-bar">
-                    <button class="btn btn-primary" id="btn-backtest" onclick="runBacktest()">
-                        <span class="spinner"></span>
-                        <span class="btn-text">🧪 Run Backtest</span>
-                    </button>
+                <div class="config-group">
+                    <label>RSI Filter</label>
+                    <div class="toggle-group">
+                        <span style="font-size:0.8rem; color:var(--text-secondary)">RSI &gt; threshold</span>
+                        <label class="toggle">
+                            <input type="checkbox" id="rsi-filter">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
                 </div>
 
-                <!-- Progress -->
-                <div class="progress-container" id="progress-container">
-                    <div class="progress-bar-track">
-                        <div class="progress-bar-fill" id="progress-bar" style="width: 0%"></div>
-                    </div>
-                    <div class="progress-text" id="progress-text">Initializing...</div>
+                <div class="config-group" id="rsi-threshold-group" style="display:none">
+                    <label for="rsi-threshold">RSI Threshold</label>
+                    <input type="number" id="rsi-threshold" value="60" min="30" max="90">
                 </div>
             </div>
+
+            <div class="action-bar">
+                <button class="btn btn-primary" id="btn-backtest" onclick="runBacktest()">
+                    <span class="spinner"></span>
+                    <span class="btn-text">🧪 Run Backtest (1-Yr Simulation)</span>
+                </button>
+                <button class="btn btn-success" id="btn-scan" onclick="runLiveScan()">
+                    <span class="spinner"></span>
+                    <span class="btn-text">⚡ Run Live Scan (Today's Setups)</span>
+                </button>
+            </div>
+
+            <!-- Global Progress Bar -->
+            <div class="progress-container" id="progress-container">
+                <div class="progress-bar-track">
+                    <div class="progress-bar-fill" id="progress-bar" style="width: 0%"></div>
+                </div>
+                <div class="progress-text" id="progress-text">Initializing...</div>
+            </div>
+        </div>
+
+        <!-- ═══ BACKTEST TAB ══════════════════════════════════ -->
+        <div class="tab-content active" id="tab-backtest">
 
             <!-- Backtest Results -->
             <div id="backtest-results" style="display:none">
@@ -209,35 +213,12 @@
             <div class="empty-state" id="backtest-empty">
                 <div class="icon">🧪</div>
                 <h3>No Backtest Results Yet</h3>
-                <p>Sync market data first, then run a backtest to validate your breakout signals against the last year of data.</p>
+                <p>Set your global filters above and click "Run Backtest" to validate your breakout strategy against the last year of market data.</p>
             </div>
         </div>
 
         <!-- ═══ LIVE SCAN TAB ═════════════════════════════════ -->
         <div class="tab-content" id="tab-scan">
-
-            <!-- Scan Config -->
-            <div class="config-panel">
-                <div class="config-header">
-                    <span class="config-title">🔍 Live Scanner Configuration</span>
-                </div>
-                <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:1rem;">
-                    Uses the same filters as the backtest tab. Adjust filters above, then scan.
-                </p>
-                <div class="action-bar" style="border-top:none; padding-top:0; margin-top:0">
-                    <button class="btn btn-success" id="btn-scan" onclick="runLiveScan()">
-                        <span class="spinner"></span>
-                        <span class="btn-text">⚡ Scan Now</span>
-                    </button>
-                </div>
-
-                <div class="progress-container" id="scan-progress">
-                    <div class="progress-bar-track">
-                        <div class="progress-bar-fill" id="scan-progress-bar" style="width: 0%"></div>
-                    </div>
-                    <div class="progress-text" id="scan-progress-text">Scanning...</div>
-                </div>
-            </div>
 
             <!-- Scan Stats -->
             <div class="stats-grid" id="scan-stats" style="display:none"></div>
@@ -249,7 +230,7 @@
             <div class="empty-state" id="scan-empty">
                 <div class="icon">⚡</div>
                 <h3>Ready to Scan</h3>
-                <p>Click "Scan Now" to detect today's breakout stocks from the Nifty 500 universe.</p>
+                <p>Set your global filters above and click "Run Live Scan" to detect today's breakout setups across Nifty 500 stocks.</p>
             </div>
         </div>
 
@@ -326,10 +307,11 @@
                 <div class="help-section active" id="help-sec-overview">
                     <div class="help-box">
                         <h3>📈 What is this App?</h3>
-                        <p>This is a professional technical analysis screener designed for Indian stocks (NSE Nifty 500). It solves two main trading problems:</p>
+                        <p>This is a professional technical analysis screener for Indian stocks (NSE Nifty 500). All strategy rules are configured once in the top <strong>Global Filter Bar</strong> and shared across both tabs:</p>
                         <ul class="help-list">
-                            <li><strong>Validate Strategy Rules:</strong> Test your breakout filters against 1 year of real historical data before risking capital.</li>
-                            <li><strong>Pre-Market & Real-Time Trade Setup:</strong> Find stocks setting up for a breakout and calculate exact Entry, Stop-Loss, and Position Sizing.</li>
+                            <li><strong>Unified Strategy Filters:</strong> Adjust Resistance Mode, Volume Multiplier, Risk Budget, 200 DMA & RSI once at the top.</li>
+                            <li><strong>Validate Rules (Backtest Tab):</strong> Test your current global filters against 1 year of real historical data.</li>
+                            <li><strong>Find Live Trades (Live Scan Tab):</strong> Apply the exact same rules to today's market prices to generate trade execution plans.</li>
                         </ul>
                     </div>
                 </div>

@@ -5,7 +5,15 @@ It features a **historical backtesting engine** to validate breakout strategies 
 
 ---
 
-## 🧭 App Overview & The 2 Core Tabs
+## 🧭 App Architecture: Unified Global Filters & Result Tabs
+
+All screener rules and parameters are defined once in the **Global Screener Configuration & Filter Bar** at the top of the dashboard. This ensures that the exact same technical criteria used in backtesting are applied when scanning live market data.
+
+- **⚙️ Global Configuration Bar**: Set your Scan Target (Confirmed vs Near Breakout Radar), Resistance Mode, Volume Multiplier, Risk Budget (₹), Min Price/Turnover, 200 DMA, and RSI filters.
+- **🧪 Backtest Tab**: Simulates your current global filters over 1 year of daily OHLCV market data (252+ trading days) across 500 stocks to validate win rates and forward returns (5D, 10D, 20D, 30D).
+- **⚡ Live Scan Tab**: Applies your current global filters against today's prices to generate real-time trade execution plans with Entry Trigger, Stop Loss, Target 1 & 2, and Position Sizing.
+
+---
 
 ### 🧪 Tab 1: Backtest Tab (Historical Validation Engine)
 Before risking capital on a breakout rule, the **Backtest Tab** proves whether the strategy actually worked over the past 12 months.

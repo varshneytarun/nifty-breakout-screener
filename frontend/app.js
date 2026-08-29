@@ -209,6 +209,7 @@ async function syncData() {
 
 // ─── Backtest ──────────────────────────────────────────────────────────────
 async function runBacktest() {
+    switchTab('backtest');
     const btn = document.getElementById('btn-backtest');
     const progress = document.getElementById('progress-container');
     const progressBar = document.getElementById('progress-bar');
@@ -486,10 +487,11 @@ function initTableSort() {
 
 // ─── Live Scan ─────────────────────────────────────────────────────────────
 async function runLiveScan() {
+    switchTab('scan');
     const btn = document.getElementById('btn-scan');
-    const progress = document.getElementById('scan-progress');
-    const progressBar = document.getElementById('scan-progress-bar');
-    const progressText = document.getElementById('scan-progress-text');
+    const progress = document.getElementById('progress-container');
+    const progressBar = document.getElementById('progress-bar');
+    const progressText = document.getElementById('progress-text');
 
     btn.classList.add('loading');
     btn.disabled = true;
