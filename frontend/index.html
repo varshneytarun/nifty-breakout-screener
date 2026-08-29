@@ -39,10 +39,19 @@
     <!-- ─── Main Content ────────────────────────────────────── -->
     <main class="main-content">
 
+        <!-- ═══ MARKET REGIME BANNER ════════════════════════════ -->
+        <div class="market-regime-bar" id="market-regime-bar">
+            <div class="regime-status-left">
+                <span class="regime-badge" id="regime-badge">🟢 Loading Market Regime...</span>
+                <span class="regime-nifty" id="regime-nifty">Nifty 50: —</span>
+            </div>
+            <div class="regime-advice" id="regime-advice">Evaluating benchmark trend & market breath...</div>
+        </div>
+
         <!-- ═══ GLOBAL SCREENER CONFIGURATION & FILTERS ════════ -->
         <div class="config-panel">
             <div class="config-header">
-                <span class="config-title">⚙️ Screener Configuration & Filters</span>
+                <span class="config-title">⚙️ Screener Configuration & Strategy Filters</span>
                 <button class="btn btn-secondary" id="btn-sync" onclick="syncData()">
                     <span class="spinner"></span>
                     <span class="btn-text">🔄 Sync Data</span>
@@ -90,6 +99,31 @@
                 <div class="config-group">
                     <label for="volume-lookback">Volume Lookback (days)</label>
                     <input type="number" id="volume-lookback" value="20" min="5" max="50">
+                </div>
+
+                <div class="config-group">
+                    <label for="min-rs-rating">Relative Strength vs Nifty 50</label>
+                    <select id="min-rs-rating">
+                        <option value="-999">All Stocks (No RS Filter)</option>
+                        <option value="0.0">Outperforming Nifty (RS &gt; 0%)</option>
+                        <option value="5.0">Strong Leaders (RS &gt; +5%)</option>
+                    </select>
+                </div>
+
+                <div class="config-group">
+                    <label>VCP Volatility Squeeze</label>
+                    <div class="toggle-group">
+                        <span style="font-size:0.8rem; color:var(--text-secondary)">Require VCP Base</span>
+                        <label class="toggle">
+                            <input type="checkbox" id="require-vcp">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="config-group">
+                    <label for="min-ai-prob">Min AI Win Probability (%)</label>
+                    <input type="number" id="min-ai-prob" value="0" min="0" max="90" step="10">
                 </div>
 
                 <div class="config-group">

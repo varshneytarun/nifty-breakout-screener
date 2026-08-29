@@ -135,6 +135,10 @@ def _parse_config(
     require_above_200dma: bool = None,
     rsi_filter_enabled: bool = None,
     rsi_threshold: float = None,
+    min_rs_rating: float = None,
+    require_vcp: bool = None,
+    min_ai_prob: int = None,
+    market_filter_enabled: bool = None,
 ) -> ScreenerConfig:
     """Build a ScreenerConfig from optional query parameters."""
     config = ScreenerConfig()
@@ -164,7 +168,35 @@ def _parse_config(
         config.rsi_filter_enabled = rsi_filter_enabled
     if rsi_threshold is not None:
         config.rsi_threshold = rsi_threshold
+    if min_rs_rating is not None:
+        config.min_rs_rating = min_rs_rating
+    if require_vcp is not None:
+        config.require_vcp = require_vcp
+    if min_ai_prob is not None:
+        config.min_ai_prob = min_ai_prob
+    if market_filter_enabled is not None:
+        config.market_filter_enabled = market_filter_enabled
     return config
+
+
+# ─── Market Regime & Sectors ────────────────────────────────────────────────
+
+@app.get("/api/market-regime")
+async def get_market_regime():
+    """Get live Nifty 50 Market Regime indicator and trader guidance."""
+    from backend.data_fetcher import get_benchmark_df
+    from backend.indicators import calculate_market_regime
+    benchmark_df = get_benchmark_df()
+    regime = calculate_market_regime(benchmark_df)
+    return sanitize_for_json(regime)
+
+
+@app.get("/api/sectors")
+async def get_sectors():
+    """Get sector / industry momentum rankings."""
+    from backend.data_fetcher import get_sector_momentum
+    momentum = get_sector_momentum()
+    return sanitize_for_json(momentum)
 
 
 # ─── Config ─────────────────────────────────────────────────────────────────

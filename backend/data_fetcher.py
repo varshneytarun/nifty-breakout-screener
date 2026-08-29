@@ -48,16 +48,16 @@ def initialize_stock_universe():
 
 def fetch_single_stock(symbol: str, period: str = "2y") -> pd.DataFrame:
     """
-    Fetch OHLCV data for a single stock from Yahoo Finance.
+    Fetch OHLCV data for a single stock or index from Yahoo Finance.
 
     Args:
-        symbol: NSE ticker symbol (without .NS suffix)
+        symbol: NSE ticker symbol (without .NS suffix) or Index (^NSEI)
         period: yfinance period string (e.g., '2y', '1y', '6mo')
 
     Returns:
         DataFrame with OHLCV data, or empty DataFrame on error.
     """
-    ticker = f"{symbol}.NS"
+    ticker = symbol if symbol.startswith("^") else f"{symbol}.NS"
     try:
         data = yf.download(ticker, period=period, progress=False, auto_adjust=True)
         if data.empty:
@@ -321,8 +321,69 @@ def sync_all_stocks(
     }
 
 
+def get_benchmark_df(period: str = "2y") -> pd.DataFrame:
+    """
+    Get Nifty 50 Index (^NSEI) OHLCV data from SQLite cache or fetch from yfinance if missing.
+    """
+    df = get_ohlcv("^NSEI")
+    if df.empty:
+        logger.info("Fetching fresh ^NSEI benchmark data...")
+        df = fetch_single_stock("^NSEI", period=period)
+        if not df.empty:
+            upsert_ohlcv("^NSEI", df)
+            df = get_ohlcv("^NSEI")
+    return df
+
+
+def get_sector_momentum() -> dict:
+    """
+    Calculate average 20-day returns by industry / sector to rank market leadership.
+    Returns dict mapping industry -> {avg_return_20d, stock_count, rank, is_top_sector}.
+    """
+    symbols = get_all_symbols()
+    sector_returns = {}
+
+    for sym in symbols:
+        info = get_stock_info(sym)
+        if not info:
+            continue
+        industry = info.get("industry") or "General"
+
+        df = get_ohlcv(sym)
+        if df.empty or len(df) < 20:
+            continue
+
+        close = df["Close"]
+        ret_20d = float((close.iloc[-1] - close.iloc[-20]) / close.iloc[-20] * 100.0)
+
+        if industry not in sector_returns:
+            sector_returns[industry] = []
+        sector_returns[industry].append(ret_20d)
+
+    # Average returns per industry
+    ranked = []
+    for ind, rets in sector_returns.items():
+        if rets:
+            avg_ret = round(float(np.mean(rets)), 2)
+            ranked.append({"industry": ind, "avg_return_20d": avg_ret, "stock_count": len(rets)})
+
+    ranked.sort(key=lambda x: x["avg_return_20d"], reverse=True)
+
+    result = {}
+    for rank, item in enumerate(ranked, 1):
+        ind = item["industry"]
+        result[ind] = {
+            "avg_return_20d": item["avg_return_20d"],
+            "stock_count": item["stock_count"],
+            "rank": rank,
+            "is_top_sector": bool(rank <= 5),
+        }
+
+    return result
+
+
 def get_stock_data_with_indicators(
-    symbol: str, config: ScreenerConfig = None
+    symbol: str, config: ScreenerConfig = None, benchmark_df: pd.DataFrame = None
 ) -> pd.DataFrame:
     """
     Get a stock's OHLCV data from cache with all indicators computed.
@@ -330,6 +391,7 @@ def get_stock_data_with_indicators(
     Args:
         symbol: NSE ticker symbol
         config: Screener configuration
+        benchmark_df: Optional Nifty 50 DataFrame for Relative Strength
 
     Returns:
         DataFrame with OHLCV + all indicator columns.
@@ -343,5 +405,8 @@ def get_stock_data_with_indicators(
     if df.empty:
         return df
 
-    df = compute_all_indicators(df, config)
+    if benchmark_df is None:
+        benchmark_df = get_benchmark_df()
+
+    df = compute_all_indicators(df, config, benchmark_df=benchmark_df)
     return df

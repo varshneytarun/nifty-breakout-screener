@@ -14,8 +14,13 @@ env/
 venv/
 .venv/
 
+# Scratch directory
+scratch/
+
 # IDE & OS files
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
+
+

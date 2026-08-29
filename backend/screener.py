@@ -146,8 +146,38 @@ def evaluate_breakout(
     else:
         rsi_val = None
 
+    # --- Relative Strength (RS vs Nifty 50) filter ---
+    mansfield_rs = float(df["Mansfield_RS"].iloc[idx]) if "Mansfield_RS" in df.columns else 0.0
+    if config.min_rs_rating > -900 and mansfield_rs < config.min_rs_rating:
+        return None
+
+    # --- VCP (Volatility Contraction Pattern) analysis & filter ---
+    from backend.indicators import calculate_vcp, calculate_market_regime
+    from backend.ml_predictor import predict_breakout_quality
+
+    sub_df = df.iloc[: idx + 1]
+    vcp_info = calculate_vcp(sub_df)
+    if config.require_vcp and not vcp_info.get("is_vcp"):
+        return None
+
+    # --- Market Regime check ---
+    from backend.data_fetcher import get_benchmark_df
+    benchmark_df = get_benchmark_df()
+    market_regime = calculate_market_regime(benchmark_df)
+    if config.market_filter_enabled and market_regime.get("regime") == "BEAR_CORRECTION":
+        return None
+
     # --- Calculate percentage above/below resistance ---
     pct_above = pct_from_resistance
+
+    # --- AI Breakout Quality & Probability Prediction ---
+    candle = df.iloc[idx].copy()
+    candle["pct_above"] = pct_above
+    is_top_sec = False  # Set dynamically in batch scan if available
+    ai_quality = predict_breakout_quality(candle, vcp_info, market_regime, is_top_sector=is_top_sec)
+
+    if config.min_ai_prob > 0 and ai_quality.get("ai_probability", 0) < config.min_ai_prob:
+        return None
 
     # --- Calculate strength score and factor breakdown ---
     bb_width = df["BB_Width"].iloc[idx] if "BB_Width" in df.columns else None
@@ -161,6 +191,13 @@ def evaluate_breakout(
         rsi_val=rsi_val,
         config=config,
     )
+
+    # Adjust strength score by Market Regime, VCP bonus (+5), and RS bonus (+5)
+    if vcp_info.get("is_vcp"):
+        strength = min(100, strength + 5)
+    if mansfield_rs > 5.0:
+        strength = min(100, strength + 5)
+    strength = int(round(strength * market_regime.get("score_modifier", 1.0)))
 
     # --- Calculate Trade Execution Plan ---
     trade_plan = calculate_trade_plan(resistance, close, df, idx, config)
@@ -188,9 +225,25 @@ def evaluate_breakout(
             "status": "PASS" if above_200dma else "WARNING",
             "summary": "Stock is in a strong long-term uptrend (Close > 200 DMA)" if above_200dma else "Stock is below 200 DMA (counter-trend move)"
         },
-        "consolidation": {
-            "bb_width": round(float(bb_width), 2) if bb_width is not None and not np.isnan(bb_width) else None,
-            "summary": f"Bollinger Band width is {round(float(bb_width), 1)}% (volatility squeeze before momentum)" if bb_width is not None and not np.isnan(bb_width) else "Bollinger Band width data unavailable"
+        "relative_strength": {
+            "mansfield_rs": round(float(mansfield_rs), 2),
+            "status": "LEADER" if mansfield_rs > 0 else "LAGGARD",
+            "summary": f"Mansfield RS is +{round(float(mansfield_rs), 1)}% vs Nifty 50 (Institutional outperformance)" if mansfield_rs > 0 else f"Mansfield RS is {round(float(mansfield_rs), 1)}% vs Nifty 50 (Lagging market)"
+        },
+        "vcp_pattern": {
+            "is_vcp": bool(vcp_info.get("is_vcp")),
+            "vcp_score": int(vcp_info.get("vcp_score", 0)),
+            "compression_pct": float(vcp_info.get("compression_pct", 0.0)),
+            "status": "HIGH TIGHT BASE" if vcp_info.get("is_vcp") else "NORMAL BASE",
+            "summary": f"ATR volatility squeezed by {vcp_info.get('compression_pct')}% (Minervini VCP accumulation setup)" if vcp_info.get("is_vcp") else f"ATR ratio is {vcp_info.get('atr_ratio')} (Standard volatility)"
+        },
+        "ai_prediction": {
+            "probability": ai_quality["ai_probability"],
+            "risk_level": ai_quality["ai_risk_level"],
+            "verdict": ai_quality["ai_verdict"],
+            "top_factors": ai_quality["top_factors"],
+            "market_regime": market_regime["regime"],
+            "summary": f"AI win probability is {ai_quality['ai_probability']}% ({ai_quality['ai_verdict']}). Key drivers: {', '.join(ai_quality['top_factors'])}"
         },
         "rsi": {
             "value": round(float(rsi_val), 1) if rsi_val is not None and not np.isnan(rsi_val) else None,
@@ -210,6 +263,14 @@ def evaluate_breakout(
         "volume_ratio": round(float(volume_ratio), 2),
         "rsi": round(float(rsi_val), 2) if rsi_val is not None else None,
         "above_200dma": bool(above_200dma),
+        "mansfield_rs": round(float(mansfield_rs), 2),
+        "is_vcp": bool(vcp_info.get("is_vcp")),
+        "vcp_score": int(vcp_info.get("vcp_score", 0)),
+        "vcp_compression_pct": float(vcp_info.get("compression_pct", 0.0)),
+        "ai_probability": int(ai_quality["ai_probability"]),
+        "ai_risk_level": ai_quality["ai_risk_level"],
+        "ai_verdict": ai_quality["ai_verdict"],
+        "market_regime": market_regime["regime"],
         "strength_score": int(strength),
         "trade_plan": trade_plan,
         "selection_factors": selection_factors,

@@ -55,9 +55,33 @@ You can toggle between two scan targets in the configuration panel:
 
 ---
 
+---
+
+## 🤖 Advanced AI & Institutional Indicator Engine
+
+The platform now incorporates institutional-grade technical screening models and machine learning to filter out false breakouts:
+
+1. **🏛️ Nifty 50 Market Regime Gate**:
+   - Classifies broader market trend (`BULL_TREND`, `CHOPPY_NEUTRAL`, `BEAR_CORRECTION`) by comparing Nifty 50 (`^NSEI`) against its 50 EMA and 200 SMA.
+   - Adjusts conviction score modifiers: in bull regimes, breakouts have tailwinds; in bear regimes, risk is flagged and position sizes are adjusted.
+
+2. **📈 Mansfield Relative Strength (RS vs Nifty 50)**:
+   - Measures institutional outperformance: `RS = ((Stock / Nifty50) / SMA(Stock / Nifty50, 50) - 1) * 100`.
+   - Filters for true market leaders that are gaining market share and accumulation even during market pullbacks.
+
+3. **🎯 Minervini Volatility Contraction Pattern (VCP)**:
+   - Detects ATR (Average True Range) compression and progressive contraction of pullbacks before the breakout pivot.
+   - Identifies institutional supply absorption and tight volatility bases.
+
+4. **🤖 Scikit-Learn ML Breakout Predictor (`RandomForestClassifier`)**:
+   - Evaluates multi-dimensional feature vectors (Volume ratio, distance from 50 SMA & 200 SMA, Bollinger bandwidth, ATR compression, Mansfield RS, and market regime).
+   - Generates calibrated **AI Win Probability (%)** and categorizes setup risk as `LOW`, `MEDIUM`, or `HIGH (Trap Risk)`.
+
+---
+
 ## 🛠️ Technical Filters & Scoring System
 
-The screener evaluates breakouts using a 1–100 weighted **Strength Score**:
+The screener evaluates breakouts using a 1–100 weighted **Strength Score** and AI probability calibration:
 
 1. **Resistance Level (52-Week High / N-Day High / Swing High)**: Key structural ceiling.
 2. **Volume Confirmation (30% weight)**: Compares today's volume against the 20-day average.
@@ -65,6 +89,7 @@ The screener evaluates breakouts using a 1–100 weighted **Strength Score**:
 4. **200 DMA Trend Alignment (20% weight)**: Ensures stock is in a long-term bull trend (`Close > 200 SMA`).
 5. **Consolidation Squeeze (15% weight)**: Measures Bollinger Band width to catch volatility squeezes prior to explosive moves.
 6. **RSI Momentum (10% weight)**: Confirms bullish 14-period RSI momentum.
+7. **RS & VCP Institutional Bonus (+10 points)**: Adds conviction bonus for stocks with positive Mansfield RS and confirmed VCP setups.
 
 ---
 

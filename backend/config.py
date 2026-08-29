@@ -43,6 +43,10 @@ class ScreenerConfig:
     require_above_200dma: bool = True  # Close must be above 200-day SMA
     rsi_filter_enabled: bool = False  # Whether to apply RSI filter
     rsi_threshold: float = 60.0  # Minimum RSI (when filter is enabled)
+    min_rs_rating: float = -999.0  # Min Mansfield Relative Strength vs Nifty 50
+    require_vcp: bool = False  # Require Volatility Contraction Pattern (VCP)
+    min_ai_prob: int = 0  # Minimum AI Win Probability % (0 to 100)
+    market_filter_enabled: bool = False  # Only allow breakouts when Nifty is Bullish
 
     # --- Swing High Detection ---
     swing_high_left: int = 5  # Bars to the left for pivot detection
@@ -88,6 +92,10 @@ class ScreenerConfig:
             "require_above_200dma": self.require_above_200dma,
             "rsi_filter_enabled": self.rsi_filter_enabled,
             "rsi_threshold": self.rsi_threshold,
+            "min_rs_rating": self.min_rs_rating,
+            "require_vcp": self.require_vcp,
+            "min_ai_prob": self.min_ai_prob,
+            "market_filter_enabled": self.market_filter_enabled,
             "swing_high_left": self.swing_high_left,
             "swing_high_right": self.swing_high_right,
             "weight_volume": self.weight_volume,
@@ -131,6 +139,18 @@ class ScreenerConfig:
             ),
             rsi_threshold=float(
                 data.get("rsi_threshold", defaults.rsi_threshold)
+            ),
+            min_rs_rating=float(
+                data.get("min_rs_rating", defaults.min_rs_rating)
+            ),
+            require_vcp=bool(
+                data.get("require_vcp", defaults.require_vcp)
+            ),
+            min_ai_prob=int(
+                data.get("min_ai_prob", defaults.min_ai_prob)
+            ),
+            market_filter_enabled=bool(
+                data.get("market_filter_enabled", defaults.market_filter_enabled)
             ),
             swing_high_left=int(
                 data.get("swing_high_left", defaults.swing_high_left)

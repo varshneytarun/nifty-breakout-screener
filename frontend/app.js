@@ -19,6 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initConfigListeners();
     loadSavedConfig();
     checkDataStatus();
+    checkMarketRegime();
     loadCachedBacktestResults();
 });
 
@@ -38,6 +39,25 @@ function switchTab(tab) {
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
     document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
     document.getElementById(`tab-${tab}`).classList.add('active');
+}
+
+// ─── Market Regime ─────────────────────────────────────────────────────────
+async function checkMarketRegime() {
+    try {
+        const res = await fetch(`${API_BASE}/api/market-regime`);
+        const data = await res.json();
+        const badge = document.getElementById('regime-badge');
+        const nifty = document.getElementById('regime-nifty');
+        const advice = document.getElementById('regime-advice');
+
+        if (badge && data) {
+            badge.textContent = data.badge || '🟢 Bull Market';
+            if (nifty) nifty.textContent = `Nifty 50: ₹${data.nifty_close?.toLocaleString('en-IN') || '—'}`;
+            if (advice) advice.textContent = data.advice || '';
+        }
+    } catch (e) {
+        console.error('Error loading market regime:', e);
+    }
 }
 
 // ─── Config ────────────────────────────────────────────────────────────────
@@ -83,6 +103,9 @@ function getConfig() {
         require_above_200dma: document.getElementById('require-200dma').checked,
         rsi_filter_enabled: document.getElementById('rsi-filter').checked,
         rsi_threshold: parseFloat(document.getElementById('rsi-threshold').value),
+        min_rs_rating: parseFloat(document.getElementById('min-rs-rating').value),
+        require_vcp: document.getElementById('require-vcp').checked,
+        min_ai_prob: parseInt(document.getElementById('min-ai-prob').value) || 0,
     };
 }
 
@@ -118,6 +141,9 @@ function loadSavedConfig() {
         if (config.require_above_200dma !== undefined) document.getElementById('require-200dma').checked = config.require_above_200dma;
         if (config.rsi_filter_enabled !== undefined) document.getElementById('rsi-filter').checked = config.rsi_filter_enabled;
         if (config.rsi_threshold) document.getElementById('rsi-threshold').value = config.rsi_threshold;
+        if (config.min_rs_rating !== undefined) document.getElementById('min-rs-rating').value = config.min_rs_rating;
+        if (config.require_vcp !== undefined) document.getElementById('require-vcp').checked = config.require_vcp;
+        if (config.min_ai_prob !== undefined) document.getElementById('min-ai-prob').value = config.min_ai_prob;
 
         // Trigger visibility updates
         document.getElementById('near-pct-group').style.display =
@@ -555,6 +581,11 @@ function renderScanResults(data) {
         const tp = b.trade_plan || {};
         const isNear = b.scan_type === 'NEAR_BREAKOUT';
 
+        // AI Confidence level styling
+        let aiClass = 'high';
+        if (b.ai_probability < 50) aiClass = 'low';
+        else if (b.ai_probability < 70) aiClass = 'medium';
+
         html += `
             <div class="result-card" style="animation-delay: ${i * 0.05}s">
                 <div class="result-card-header">
@@ -567,6 +598,13 @@ function renderScanResults(data) {
                         </div>
                         <div class="result-company">${b.company || ''}</div>
                         ${b.industry ? `<div class="result-industry">${b.industry}</div>` : ''}
+                        
+                        <!-- AI & Setup Tags -->
+                        <div class="setup-tags-row">
+                            ${b.ai_probability ? `<span class="ai-prob-badge ${aiClass}">🤖 AI Win: ${b.ai_probability}%</span>` : ''}
+                            ${b.mansfield_rs !== undefined && b.mansfield_rs > 0 ? `<span class="tag-badge rs-leader">📈 RS +${b.mansfield_rs}%</span>` : ''}
+                            ${b.is_vcp ? `<span class="tag-badge vcp-squeeze">🎯 VCP Squeeze (${b.vcp_compression_pct}%)</span>` : ''}
+                        </div>
                     </div>
                     ${scoreBadge(b.strength_score)}
                 </div>
@@ -668,6 +706,39 @@ function openDiagModal(idx) {
     const factorsGrid = document.getElementById('modal-factors-grid');
     factorsGrid.innerHTML = `
         <div class="factor-item">
+            <div class="factor-icon">🤖</div>
+            <div class="factor-details">
+                <div class="factor-title-row">
+                    <span class="factor-title">AI Breakout Probability & ML Verdict</span>
+                    <span class="factor-badge pass">${b.ai_probability ? `${b.ai_probability}% Win Prob` : 'AI SCORING'}</span>
+                </div>
+                <div class="factor-desc">${sf.ai_prediction?.summary || 'Scikit-Learn Random Forest evaluated pattern features.'}</div>
+            </div>
+        </div>
+
+        <div class="factor-item">
+            <div class="factor-icon">📈</div>
+            <div class="factor-details">
+                <div class="factor-title-row">
+                    <span class="factor-title">Mansfield Relative Strength vs Nifty 50</span>
+                    <span class="factor-badge ${b.mansfield_rs > 0 ? 'pass' : 'warning'}">${b.mansfield_rs > 0 ? `LEADER (+${b.mansfield_rs}%)` : `LAGGARD (${b.mansfield_rs}%)`}</span>
+                </div>
+                <div class="factor-desc">${sf.relative_strength?.summary || 'Calculated vs ^NSEI benchmark.'}</div>
+            </div>
+        </div>
+
+        <div class="factor-item">
+            <div class="factor-icon">🎯</div>
+            <div class="factor-details">
+                <div class="factor-title-row">
+                    <span class="factor-title">VCP (Volatility Contraction Pattern)</span>
+                    <span class="factor-badge ${b.is_vcp ? 'pass' : 'neutral'}">${b.is_vcp ? `VCP BASE (${b.vcp_compression_pct}% ATR SQUEEZE)` : 'NORMAL BASE'}</span>
+                </div>
+                <div class="factor-desc">${sf.vcp_pattern?.summary || 'ATR compression analysis.'}</div>
+            </div>
+        </div>
+
+        <div class="factor-item">
             <div class="factor-icon">🎯</div>
             <div class="factor-details">
                 <div class="factor-title-row">
@@ -679,7 +750,7 @@ function openDiagModal(idx) {
         </div>
 
         <div class="factor-item">
-            <div class="factor-icon">📈</div>
+            <div class="factor-icon">📊</div>
             <div class="factor-details">
                 <div class="factor-title-row">
                     <span class="factor-title">Volume Confirmation & Turnover</span>
@@ -697,28 +768,6 @@ function openDiagModal(idx) {
                     <span class="factor-badge ${b.above_200dma ? 'pass' : 'warning'}">${b.above_200dma ? 'PASS (Uptrend)' : 'WARNING (Below 200 DMA)'}</span>
                 </div>
                 <div class="factor-desc">${sf.trend?.summary || ''}</div>
-            </div>
-        </div>
-
-        <div class="factor-item">
-            <div class="factor-icon">⚡</div>
-            <div class="factor-details">
-                <div class="factor-title-row">
-                    <span class="factor-title">Consolidation Squeeze (Bollinger Bands)</span>
-                    <span class="factor-badge pass">SQUEEZE</span>
-                </div>
-                <div class="factor-desc">${sf.consolidation?.summary || ''}</div>
-            </div>
-        </div>
-
-        <div class="factor-item">
-            <div class="factor-icon">📊</div>
-            <div class="factor-details">
-                <div class="factor-title-row">
-                    <span class="factor-title">RSI Momentum</span>
-                    <span class="factor-badge pass">${b.rsi ? `RSI ${b.rsi}` : 'PASS'}</span>
-                </div>
-                <div class="factor-desc">${sf.rsi?.summary || ''}</div>
             </div>
         </div>
     `;
