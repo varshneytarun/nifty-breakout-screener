@@ -179,8 +179,14 @@ function updateDataStatus(data) {
         return;
     }
 
+    if (data.auto_sync && data.auto_sync.is_syncing) {
+        dot.className = 'status-dot syncing';
+        text.textContent = 'Auto-refreshing stock data...';
+        return;
+    }
+
     const isRecent = data.latest_date &&
-        (new Date() - new Date(data.latest_date)) < 3 * 24 * 60 * 60 * 1000;
+        (new Date() - new Date(data.latest_date)) < 4 * 24 * 60 * 60 * 1000;
 
     dot.className = `status-dot ${isRecent ? '' : 'stale'}`;
     text.textContent = `${data.cached_stocks} stocks · ${data.latest_date || 'N/A'}`;

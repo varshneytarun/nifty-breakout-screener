@@ -112,7 +112,8 @@ Navigate to **`http://localhost:8000`** in your browser.
 
 ## 🌐 Cloud Deployment (Render.com)
 
-- Environment: `Python 3`
-- Build Command: `pip install -r requirements.txt`
-- Start Command: `python -m uvicorn backend.main:app --host 0.0.0.0 --port $PORT`
-- *Note:* The app includes an automatic background keep-alive loop to prevent Render's free tier from sleeping after 15 minutes of inactivity.
+- **Environment**: `Python 3`
+- **Build Command**: `pip install -r requirements.txt`
+- **Start Command**: `python -m uvicorn backend.main:app --host 0.0.0.0 --port $PORT`
+- **🔄 Auto-Refresh on Day Change**: The background scheduler monitors Indian Standard Time (IST) and automatically triggers incremental data syncs after market close (18:00+ IST) and overnight. Whenever a user visits the app, the data is already fresh!
+- **⚡ Keep-Alive Loop**: Uses `RENDER_EXTERNAL_URL` to self-ping every 8 minutes, preventing Render's free tier from sleeping.

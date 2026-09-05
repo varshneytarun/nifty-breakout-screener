@@ -6,7 +6,7 @@ import asyncio
 import json
 import logging
 import math
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 from concurrent.futures import ThreadPoolExecutor
 
@@ -86,8 +86,95 @@ app.add_middleware(
 # Thread pool for running blocking yfinance/pandas operations
 executor = ThreadPoolExecutor(max_workers=4)
 
-# Track running operations
+# Track running operations and auto-sync state
 _running_ops = {}
+_auto_sync_state = {
+    "is_syncing": False,
+    "last_sync_time": None,
+    "last_synced_date": None,
+    "last_status": "Idle",
+}
+
+
+def get_expected_market_date() -> str:
+    """
+    Get expected latest trading date string (YYYY-MM-DD) in IST timezone.
+    Indian markets trade Mon-Fri 09:15 to 15:30 IST.
+    Daily candles are fully finalized after 18:00 IST (6 PM).
+    """
+    ist = timezone(timedelta(hours=5, minutes=30))
+    now_ist = datetime.now(ist)
+
+    # If today is weekday and after 18:00 IST, today's candle is expected.
+    # Otherwise, target is previous trading day.
+    if now_ist.weekday() < 5 and now_ist.hour >= 18:
+        target_date = now_ist.date()
+    else:
+        # Step backward to find latest completed weekday
+        target_date = now_ist.date() - timedelta(days=1)
+        while target_date.weekday() >= 5:  # Saturday/Sunday -> move to Friday
+            target_date -= timedelta(days=1)
+
+    return target_date.strftime("%Y-%m-%d")
+
+
+def check_and_run_auto_sync():
+    """
+    Background worker to check if data is outdated and run incremental sync.
+    Runs periodically every 30 minutes and on startup.
+    """
+    global _auto_sync_state
+    if _auto_sync_state["is_syncing"]:
+        return
+
+    try:
+        expected_date = get_expected_market_date()
+        status = get_data_status()
+        latest_cached = status.get("latest_date")
+
+        needs_sync = False
+        if not latest_cached or status.get("cached_stocks", 0) == 0:
+            needs_sync = True
+        elif latest_cached < expected_date:
+            needs_sync = True
+
+        if needs_sync:
+            ist = timezone(timedelta(hours=5, minutes=30))
+            logger.info(f"🔄 Auto-sync triggered: latest cached is {latest_cached}, expected is {expected_date}")
+            _auto_sync_state["is_syncing"] = True
+            _auto_sync_state["last_status"] = f"Auto-refreshing data for {expected_date}..."
+
+            result = sync_all_stocks()
+
+            _auto_sync_state["is_syncing"] = False
+            _auto_sync_state["last_sync_time"] = datetime.now(ist).isoformat()
+            _auto_sync_state["last_synced_date"] = expected_date
+            _auto_sync_state["last_status"] = f"Synced {result.get('synced', 0)} stocks (Latest: {expected_date})"
+            logger.info(f"✅ Auto-sync completed successfully: {result}")
+        else:
+            _auto_sync_state["last_status"] = f"Up to date ({latest_cached})"
+
+    except Exception as e:
+        logger.error(f"❌ Auto-sync error: {e}")
+        _auto_sync_state["is_syncing"] = False
+        _auto_sync_state["last_status"] = f"Error: {str(e)}"
+
+
+async def _daily_auto_sync_loop():
+    """
+    Background loop that runs every 30 minutes to check if the day changed / market closed
+    and keep the stock database automatically refreshed at night.
+    """
+    logger.info("Auto-refresh background scheduler active (checks every 30 mins, refreshes when day changes/night)")
+    while True:
+        try:
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(executor, check_and_run_auto_sync)
+        except Exception as e:
+            logger.warning(f"Auto-sync loop warning: {e}")
+
+        # Check every 30 minutes
+        await asyncio.sleep(1800)
 
 
 async def _keep_alive_loop():
@@ -112,13 +199,15 @@ async def _keep_alive_loop():
 
 @app.on_event("startup")
 async def startup():
-    """Initialize database and stock universe on startup."""
+    """Initialize database and stock universe on startup, and launch background workers."""
     init_db()
     symbols = get_all_symbols()
     if not symbols:
         initialize_stock_universe()
         logger.info("Stock universe initialized")
     asyncio.create_task(_keep_alive_loop())
+    asyncio.create_task(_daily_auto_sync_loop())
+
 
 
 def _parse_config(
@@ -211,8 +300,11 @@ async def get_config():
 
 @app.get("/api/data/status")
 async def data_status():
-    """Check data freshness."""
-    return get_data_status()
+    """Check data freshness and auto-sync status."""
+    status = get_data_status()
+    status["auto_sync"] = _auto_sync_state
+    status["expected_date"] = get_expected_market_date()
+    return status
 
 
 @app.post("/api/data/sync")
