@@ -93,6 +93,9 @@ _auto_sync_state = {
     "last_sync_time": None,
     "last_synced_date": None,
     "last_status": "Idle",
+    "current": 0,
+    "total": 0,
+    "message": "",
 }
 
 
@@ -142,11 +145,22 @@ def check_and_run_auto_sync():
             ist = timezone(timedelta(hours=5, minutes=30))
             logger.info(f"🔄 Auto-sync triggered: latest cached is {latest_cached}, expected is {expected_date}")
             _auto_sync_state["is_syncing"] = True
-            _auto_sync_state["last_status"] = f"Auto-refreshing data for {expected_date}..."
+            _auto_sync_state["current"] = 0
+            _auto_sync_state["total"] = status.get("total_stocks", 500)
+            _auto_sync_state["message"] = f"Starting auto-refresh for {expected_date}..."
+            _auto_sync_state["last_status"] = f"Auto-refreshing for {expected_date}..."
 
-            result = sync_all_stocks()
+            def _auto_progress(current, total, message):
+                _auto_sync_state["current"] = current
+                _auto_sync_state["total"] = total
+                _auto_sync_state["message"] = message
+                _auto_sync_state["last_status"] = f"Auto-refreshing {current}/{total} stocks..."
+
+            result = sync_all_stocks(progress_callback=_auto_progress)
 
             _auto_sync_state["is_syncing"] = False
+            _auto_sync_state["current"] = result.get("total", _auto_sync_state["total"])
+            _auto_sync_state["total"] = result.get("total", _auto_sync_state["total"])
             _auto_sync_state["last_sync_time"] = datetime.now(ist).isoformat()
             _auto_sync_state["last_synced_date"] = expected_date
             _auto_sync_state["last_status"] = f"Synced {result.get('synced', 0)} stocks (Latest: {expected_date})"
@@ -445,8 +459,10 @@ async def backtest_signals(
 
 # ─── Live Scanner ───────────────────────────────────────────────────────────
 
-@app.get("/api/scan")
-async def live_scan(
+# ─── Live Scanner ───────────────────────────────────────────────────────────
+
+@app.post("/api/scan")
+async def live_scan_stream(
     resistance_mode: str = Query(default=None),
     n_day_lookback: int = Query(default=None),
     volume_multiplier: float = Query(default=None),
@@ -460,10 +476,13 @@ async def live_scan(
     require_above_200dma: bool = Query(default=None),
     rsi_filter_enabled: bool = Query(default=None),
     rsi_threshold: float = Query(default=None),
+    min_rs_rating: float = Query(default=None),
+    require_vcp: bool = Query(default=None),
+    min_ai_prob: int = Query(default=None),
+    market_filter_enabled: bool = Query(default=None),
 ):
     """
-    Run the live screener — detect today's breakouts or near-breakout setups.
-    Returns a list of breakout stocks sorted by strength score with trade plans.
+    Run the live screener with real-time SSE streaming progress updates.
     """
     config = _parse_config(
         resistance_mode=resistance_mode,
@@ -479,6 +498,138 @@ async def live_scan(
         require_above_200dma=require_above_200dma,
         rsi_filter_enabled=rsi_filter_enabled,
         rsi_threshold=rsi_threshold,
+        min_rs_rating=min_rs_rating,
+        require_vcp=require_vcp,
+        min_ai_prob=min_ai_prob,
+        market_filter_enabled=market_filter_enabled,
+    )
+
+    symbols = get_all_symbols()
+    total_symbols = len(symbols)
+
+    async def generate():
+        progress_state = {
+            "current": 0,
+            "total": total_symbols,
+            "found": 0,
+            "message": f"Starting live scan across {total_symbols} stocks...",
+            "done": False,
+        }
+
+        def progress_callback(current, total, found, symbol=None):
+            progress_state["current"] = current
+            progress_state["total"] = total
+            progress_state["found"] = found
+            sym_text = f" ({symbol})" if symbol else ""
+            progress_state["message"] = f"Scanned {current}/{total} stocks · Found {found} setups{sym_text}"
+
+        def _do_scan():
+            breakouts = []
+            for i, symbol in enumerate(symbols, 1):
+                try:
+                    df = get_stock_data_with_indicators(symbol, config)
+                    if not df.empty and len(df) >= 252:
+                        idx = len(df) - 1
+                        result = evaluate_breakout(df, idx, config)
+
+                        if result and result.get("is_breakout"):
+                            info = get_stock_info(symbol) or {}
+                            breakout = {
+                                "symbol": symbol,
+                                "company": info.get("company", ""),
+                                "industry": info.get("industry", ""),
+                                "scan_date": df.index[-1].strftime("%Y-%m-%d"),
+                                **result,
+                            }
+                            breakouts.append(breakout)
+
+                except Exception as e:
+                    logger.error(f"Scan error for {symbol}: {e}")
+
+                if (i % 10 == 0 or i == total_symbols or (result and result.get("is_breakout"))):
+                    progress_callback(i, total_symbols, len(breakouts), symbol)
+
+            # Sort by strength score descending
+            breakouts.sort(key=lambda x: x.get("strength_score", 0), reverse=True)
+
+            # Save to database
+            scan_date = datetime.now().strftime("%Y-%m-%d")
+            save_scan_results([
+                {**b, "scan_date": scan_date}
+                for b in breakouts
+            ])
+
+            return breakouts
+
+        loop = asyncio.get_event_loop()
+        yield f"data: {json.dumps(progress_state)}\n\n"
+
+        future = loop.run_in_executor(executor, _do_scan)
+
+        while not future.done():
+            await asyncio.sleep(0.3)
+            yield f"data: {json.dumps(progress_state)}\n\n"
+
+        result = future.result()
+        final_payload = sanitize_for_json({
+            "done": True,
+            "current": total_symbols,
+            "total": total_symbols,
+            "found": len(result),
+            "message": f"Scan complete! Found {len(result)} breakout setups from {total_symbols} stocks",
+            "data": {
+                "breakouts": result,
+                "total": len(result),
+                "scanned": total_symbols,
+                "config": config.to_dict(),
+            }
+        })
+        yield f"data: {json.dumps(final_payload)}\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
+
+
+@app.get("/api/scan")
+async def live_scan_get(
+    resistance_mode: str = Query(default=None),
+    n_day_lookback: int = Query(default=None),
+    volume_multiplier: float = Query(default=None),
+    volume_lookback: int = Query(default=None),
+    scan_type: str = Query(default=None),
+    near_breakout_pct: float = Query(default=None),
+    risk_per_trade_inr: float = Query(default=None),
+    risk_reward_ratio: float = Query(default=None),
+    min_price: float = Query(default=None),
+    min_turnover_cr: float = Query(default=None),
+    require_above_200dma: bool = Query(default=None),
+    rsi_filter_enabled: bool = Query(default=None),
+    rsi_threshold: float = Query(default=None),
+    min_rs_rating: float = Query(default=None),
+    require_vcp: bool = Query(default=None),
+    min_ai_prob: int = Query(default=None),
+    market_filter_enabled: bool = Query(default=None),
+):
+    """
+    Synchronous GET fallback for live screener.
+    """
+    config = _parse_config(
+        resistance_mode=resistance_mode,
+        n_day_lookback=n_day_lookback,
+        volume_multiplier=volume_multiplier,
+        volume_lookback=volume_lookback,
+        scan_type=scan_type,
+        near_breakout_pct=near_breakout_pct,
+        risk_per_trade_inr=risk_per_trade_inr,
+        risk_reward_ratio=risk_reward_ratio,
+        min_price=min_price,
+        min_turnover_cr=min_turnover_cr,
+        require_above_200dma=require_above_200dma,
+        rsi_filter_enabled=rsi_filter_enabled,
+        rsi_threshold=rsi_threshold,
+        min_rs_rating=min_rs_rating,
+        require_vcp=require_vcp,
+        min_ai_prob=min_ai_prob,
+        market_filter_enabled=market_filter_enabled,
     )
 
     symbols = get_all_symbols()
@@ -491,11 +642,10 @@ async def live_scan(
                 if df.empty or len(df) < 252:
                     continue
 
-                # Evaluate the latest bar
                 idx = len(df) - 1
                 result = evaluate_breakout(df, idx, config)
 
-                if result and result["is_breakout"]:
+                if result and result.get("is_breakout"):
                     info = get_stock_info(symbol) or {}
                     breakout = {
                         "symbol": symbol,
@@ -509,16 +659,12 @@ async def live_scan(
             except Exception as e:
                 logger.error(f"Scan error for {symbol}: {e}")
 
-        # Sort by strength score descending
         breakouts.sort(key=lambda x: x.get("strength_score", 0), reverse=True)
-
-        # Save to database
         scan_date = datetime.now().strftime("%Y-%m-%d")
         save_scan_results([
             {**b, "scan_date": scan_date}
             for b in breakouts
         ])
-
         return breakouts
 
     loop = asyncio.get_event_loop()

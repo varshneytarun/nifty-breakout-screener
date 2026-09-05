@@ -181,7 +181,10 @@ function updateDataStatus(data) {
 
     if (data.auto_sync && data.auto_sync.is_syncing) {
         dot.className = 'status-dot syncing';
-        text.textContent = 'Auto-refreshing stock data...';
+        const cur = data.auto_sync.current || 0;
+        const tot = data.auto_sync.total || data.total_stocks || 500;
+        text.textContent = `Auto-refreshing: ${cur}/${tot} stocks...`;
+        setTimeout(checkDataStatus, 2000);
         return;
     }
 
@@ -528,21 +531,39 @@ async function runLiveScan() {
     btn.classList.add('loading');
     btn.disabled = true;
     progress.classList.add('active');
-    progressBar.style.width = '30%';
-    progressText.textContent = 'Scanning Nifty 500 stocks...';
+    progressBar.style.width = '0%';
+    progressText.textContent = 'Initializing live scan across Nifty 500...';
 
     const config = getConfig();
     const params = configToQueryParams(config);
 
     try {
-        const res = await fetch(`${API_BASE}/api/scan?${params}`);
-        const data = await res.json();
+        const res = await fetch(`${API_BASE}/api/scan?${params}`, { method: 'POST' });
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
 
-        progressBar.style.width = '100%';
-        progressText.textContent = `✅ Found ${data.total} breakouts from ${data.scanned} stocks`;
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
 
-        scanResults = data;
-        renderScanResults(data);
+            const text = decoder.decode(value);
+            const lines = text.split('\n').filter(l => l.startsWith('data: '));
+
+            for (const line of lines) {
+                try {
+                    const data = JSON.parse(line.slice(6));
+                    const pct = data.total > 0 ? (data.current / data.total * 100) : 0;
+                    progressBar.style.width = `${pct}%`;
+                    progressText.textContent = data.message || 'Scanning stocks...';
+
+                    if (data.done && data.data) {
+                        scanResults = data.data;
+                        renderScanResults(data.data);
+                        progressText.textContent = `✅ ${data.message}`;
+                    }
+                } catch (e) { /* skip */ }
+            }
+        }
 
     } catch (e) {
         console.error('Scan error:', e);

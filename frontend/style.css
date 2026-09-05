@@ -168,6 +168,12 @@ body::before {
     background: var(--accent-amber);
 }
 
+.status-dot.syncing {
+    background: var(--accent-blue);
+    box-shadow: 0 0 8px rgba(59, 130, 246, 0.6);
+    animation: pulse-dot 1s ease-in-out infinite;
+}
+
 .status-dot.empty {
     background: var(--accent-red);
     animation: none;
